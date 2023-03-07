@@ -2447,6 +2447,17 @@ public final class PropertyKey implements Comparable<PropertyKey> {
               + "the master addresses.")
           .setScope(Scope.ALL)
           .build();
+
+  public static final PropertyKey MASTER_FILE_ACCESS_TIME_UPDATER_ENABLED =
+      booleanBuilder(Name.MASTER_FILE_ACCESS_TIME_UPDATER_ENABLED)
+          .setDefaultValue(true)
+          .setDescription("If enabled, file access time updater will update the file last "
+              + "access time when an inode is accessed. This property can be turned off to improve "
+              + "performance and reduce the number of journal entries if your application does "
+              + "not rely on the file access time metadata.")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
+          .setScope(Scope.MASTER)
+          .build();
   public static final PropertyKey MASTER_FILE_ACCESS_TIME_JOURNAL_FLUSH_INTERVAL =
       durationBuilder(Name.MASTER_FILE_ACCESS_TIME_JOURNAL_FLUSH_INTERVAL)
           .setDefaultValue("1h")
@@ -3297,6 +3308,14 @@ public final class PropertyKey implements Comparable<PropertyKey> {
               + "(blocks having no corresponding files but still taking system resource due to "
               + "various system failures). Orphaned blocks will be deleted during master startup "
               + "if this property is true. This property is available since 1.7.1")
+          .setScope(Scope.MASTER)
+          .build();
+  public static final PropertyKey MASTER_STATE_LOCK_ERROR_THRESHOLD =
+      intBuilder(Name.MASTER_STATE_LOCK_ERROR_THRESHOLD)
+          .setDefaultValue(20)
+          .setDescription("Used to trace and debug state lock issues. When a thread recursively "
+              + "acquires the state lock more than threshold, log an error for further debugging.")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.IGNORE)
           .setScope(Scope.MASTER)
           .build();
   public static final PropertyKey MASTER_TIERED_STORE_GLOBAL_LEVEL0_ALIAS =
@@ -5191,8 +5210,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .build();
   public static final PropertyKey PROXY_S3_MULTIPART_UPLOAD_CLEANER_ENABLED =
       booleanBuilder(Name.PROXY_S3_MULTIPART_UPLOAD_CLEANER_ENABLED)
-          .setDefaultValue(true)
-          .setDescription("Whether or not to enable automatic cleanup of long-running "
+          .setDefaultValue(false)
+          .setDescription("Enable automatic cleanup of long-running "
               + "multipart uploads.")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
           .setScope(Scope.SERVER)
@@ -5289,7 +5308,7 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .build();
   public static final PropertyKey PROXY_S3_V2_VERSION_ENABLED =
           booleanBuilder(Name.PROXY_S3_V2_VERSION_ENABLED)
-                  .setDefaultValue(false)
+                  .setDefaultValue(true)
                   .setDescription("(Experimental) V2, an optimized version of "
                           + "Alluxio s3 proxy service.")
                   .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
@@ -7838,6 +7857,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.master.cluster.metrics.update.interval";
     public static final String MASTER_CONTAINER_ID_RESERVATION_SIZE =
         "alluxio.master.container.id.reservation.size";
+    public static final String MASTER_FILE_ACCESS_TIME_UPDATER_ENABLED =
+        "alluxio.master.file.access.time.updater.enabled";
     public static final String MASTER_FILE_ACCESS_TIME_JOURNAL_FLUSH_INTERVAL =
         "alluxio.master.file.access.time.journal.flush.interval";
     public static final String MASTER_FILE_ACCESS_TIME_UPDATE_PRECISION =
@@ -8098,6 +8119,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.master.skip.root.acl.check";
     public static final String MASTER_STARTUP_BLOCK_INTEGRITY_CHECK_ENABLED =
         "alluxio.master.startup.block.integrity.check.enabled";
+    public static final String MASTER_STATE_LOCK_ERROR_THRESHOLD =
+        "alluxio.master.state.lock.error.threshold";
     public static final String MASTER_TIERED_STORE_GLOBAL_LEVEL0_ALIAS =
         "alluxio.master.tieredstore.global.level0.alias";
     public static final String MASTER_TIERED_STORE_GLOBAL_LEVEL1_ALIAS =
