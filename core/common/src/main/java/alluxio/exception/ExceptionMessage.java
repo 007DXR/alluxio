@@ -118,6 +118,11 @@ public enum ExceptionMessage {
   // file system master ufs
   FAILED_UFS_RENAME("Failed to rename {0} to {1} in the under file system"),
 
+  // worker
+  WORKER_NOT_FOUND("Worker {0} not found"),
+  WORKER_DECOMMISSIONED_BEFORE_REGISTER("Attempting to decommission an unregistered worker {0}. "
+      + "Please wait until this worker is registered."),
+
   // cli
   INVALID_ARGS_NULL("Null args for command {0}"),
   INVALID_ARGS_NUM("Command {0} takes {1} arguments, not {2}"),
@@ -191,6 +196,16 @@ public enum ExceptionMessage {
 
   // ufs maintenance
   UFS_OP_NOT_ALLOWED("Operation {0} not allowed on ufs path {1} under maintenance mode {2}"),
+
+  // RocksDB
+  ROCKS_DB_CLOSING("RocksDB is being closed because the master is under one of the following "
+      + "events: primary failover/shut down/checkpoint/journal replay"),
+  ROCKS_DB_REWRITTEN("RocksDB has been rewritten. Typically this is because the master is "
+      + "restored to a checkpoint."),
+  ROCKS_DB_EXCLUSIVE_LOCK_FORCED("RocksDB exclusive lock is forced with {0} ongoing "
+      + "r/w operations. There is a risk to crash!"),
+  ROCKS_DB_REF_COUNT_DIRTY("Some read/write operations did not respect the exclusive lock on "
+      + "the RocksStore and messed up the ref count! Current ref count is {0}."),
 
   // SEMICOLON! minimize merge conflicts by putting it on its own line
   ;

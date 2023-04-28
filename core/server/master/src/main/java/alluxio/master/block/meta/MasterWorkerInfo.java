@@ -17,6 +17,7 @@ import alluxio.client.block.options.GetWorkerReportOptions;
 import alluxio.client.block.options.GetWorkerReportOptions.WorkerInfoField;
 import alluxio.grpc.BuildVersion;
 import alluxio.grpc.StorageList;
+import alluxio.master.WorkerState;
 import alluxio.master.block.DefaultBlockMaster;
 import alluxio.resource.LockResource;
 import alluxio.util.CommonUtils;
@@ -111,7 +112,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  *    and block removal/commit.
  * 2. In {@link alluxio.master.block.WorkerRegisterContext},
  *    to write locks are held throughout the lifecycle.
- * 3. In {@link DefaultBlockMaster.LostWorkerDetectionHeartbeatExecutor#heartbeat()}
+ * 3. In {@link DefaultBlockMaster.LostWorkerDetectionHeartbeatExecutor#heartbeat(long)}
  */
 @NotThreadSafe
 public final class MasterWorkerInfo {
