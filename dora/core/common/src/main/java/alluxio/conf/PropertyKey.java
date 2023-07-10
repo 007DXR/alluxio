@@ -2679,6 +2679,19 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
           .setScope(Scope.MASTER)
           .build();
+  public static final PropertyKey MASTER_METASTORE_ROCKS_EXCLUSIVE_LOCK_TIMEOUT =
+      durationBuilder(Name.MASTER_METASTORE_ROCKS_EXCLUSIVE_LOCK_TIMEOUT)
+          .setDefaultValue("10s")
+          .setIsHidden(true)
+          .setDescription("Before RocksDB is shut down/restarted/restored, Master will wait for "
+              + "ongoing operations to complete/abort. This timeout specifies how long to wait "
+              + "before forcing the action. Then the leftover operations will fail. Normally the "
+              + "wait will be short, because when master fails over/shuts down/replays journal, "
+              + "all other concurrent operations should have been stopped. This is just one extra "
+              + "safety guard. Therefore we do not recommend setting this manually.")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
+          .setScope(Scope.MASTER)
+          .build();
   public static final PropertyKey MASTER_METASTORE_ROCKS_PARALLEL_BACKUP =
       booleanBuilder(Name.MASTER_METASTORE_ROCKS_PARALLEL_BACKUP)
         .setDefaultValue(false)
@@ -3605,8 +3618,9 @@ public final class PropertyKey implements Comparable<PropertyKey> {
   public static final PropertyKey MASTER_UPDATE_CHECK_ENABLED =
       booleanBuilder(Name.MASTER_UPDATE_CHECK_ENABLED)
           .setDefaultValue(Boolean.parseBoolean(ProjectConstants.UPDATE_CHECK_ENABLED))
-          .setDescription("Whether to check for update availability.")
+          .setDescription("Whether to check for update availability")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setIsHidden(true)
           .setScope(Scope.MASTER)
           .build();
   public static final PropertyKey MASTER_UPDATE_CHECK_INTERVAL =
@@ -3614,6 +3628,7 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setDefaultValue("7day")
           .setDescription("The interval to check for update availability.")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setIsHidden(true)
           .setScope(Scope.MASTER)
           .build();
   public static final PropertyKey MASTER_UNSAFE_DIRECT_PERSIST_OBJECT_ENABLED =
@@ -4178,7 +4193,7 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .build();
   public static final PropertyKey WORKER_BLOCK_STORE_TYPE =
       enumBuilder(Name.WORKER_BLOCK_STORE_TYPE, BlockStoreType.class)
-          .setDefaultValue(BlockStoreType.FILE)
+          .setDefaultValue(BlockStoreType.PAGE)
           .setDescription("The implementation of LocalBlockStore that can be instantiated.")
           .setScope(Scope.WORKER)
           .build();
@@ -5936,6 +5951,14 @@ public final class PropertyKey implements Comparable<PropertyKey> {
               + "configuration of \"alluxio.user.file.metadata.load.type\" will be ignored.")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
           .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey USER_FILE_METADATA_LOAD_REAL_CONTENT_HASH =
+      booleanBuilder(Name.USER_FILE_METADATA_LOAD_REAL_CONTENT_HASH)
+          .setDefaultValue(false)
+          .setDescription("Whether to get real content hash of file when the file is loaded "
+              + "from UFS.")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
+          .setScope(Scope.SERVER)
           .build();
   public static final PropertyKey USER_FILE_PASSIVE_CACHE_ENABLED =
       booleanBuilder(Name.USER_FILE_PASSIVE_CACHE_ENABLED)
@@ -7798,10 +7821,15 @@ public final class PropertyKey implements Comparable<PropertyKey> {
               + "reads and block writes) to wait for a response from the data server.")
           .build();
 
-  public static final PropertyKey DORA_CLIENT_READ_LOCATION_POLICY_ENABLED =
-      booleanBuilder(Name.DORA_CLIENT_READ_LOCATION_POLICY_ENABLED)
+  public static final PropertyKey DORA_ENABLED =
+      booleanBuilder(Name.DORA_ENABLED)
           .setDefaultValue(true)
-          .setDescription("Whether to use client side location policy for reading")
+          .setDescription("This is the main switch for the Dora architecture, for both client "
+              + "and server sides. Make sure this is set to the same value across ALL Alluxio "
+              + "components including clients, workers, proxies etc. Note that Alluxio 3 will "
+              + "eventually only support DORA structure, so this property will only serve "
+              + "for a short period for compatibility, and will be removed eventually.")
+          .setAlias("alluxio.dora.client.read.location.policy.enabled")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
           .setScope(Scope.ALL)
           .build();
@@ -7818,7 +7846,7 @@ public final class PropertyKey implements Comparable<PropertyKey> {
       stringBuilder(Name.DORA_CLIENT_UFS_ROOT)
           .setDefaultValue(format("${%s}/underFSStorage", Name.WORK_DIR))
           .setDescription("UFS root for dora client when "
-              + Name.DORA_CLIENT_READ_LOCATION_POLICY_ENABLED
+              + Name.DORA_ENABLED
               + " is enabled, to resolve a relative Alluxio URI")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
           .setScope(Scope.ALL)
@@ -7902,17 +7930,6 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
           .setScope(Scope.WORKER)
           .build();
-  public static final PropertyKey DORA_WORKER_POPULATE_METADATA_FINGERPRINT =
-      booleanBuilder(Name.DORA_WORKER_POPULATE_METADATA_FINGERPRINT)
-          .setDescription("Populate the fingerprint for file metadata fetched from UFS "
-              + "If set, when the file metadata is updated, the fingerprints will be compared. "
-              + "If the file metadata is updated but the data part does not change, "
-              + "we can skip invalidating the page cache, at the expense of having extra overhead "
-              + "on computing the fingerprint for UFS files.")
-          .setDefaultValue(false)
-          .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
-          .setScope(Scope.WORKER)
-          .build();
 
   public static final PropertyKey DORA_UFS_LIST_STATUS_CACHE_TTL =
       durationBuilder(Name.DORA_UFS_LIST_STATUS_CACHE_TTL)
@@ -7922,14 +7939,26 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setScope(Scope.WORKER)
           .build();
 
-  public static final PropertyKey DORA_UFS_LIST_STATUS_CACHE_NR_DIRS =
-      intBuilder(Name.DORA_UFS_LIST_STATUS_CACHE_NR_DIRS)
-          .setDefaultValue(50)
-          .setDescription("Number of the file/dir cache of UFS list status results")
+  public static final PropertyKey DORA_UFS_LIST_STATUS_CACHE_NR_FILES =
+      intBuilder(Name.DORA_UFS_LIST_STATUS_CACHE_NR_FILES)
+          .setDefaultValue(100000)
+          .setDescription("Number of the file ufs statuses of UFS listing cache. "
+              + "The more files a directory contain, the more weight it is counted "
+              + "when the cache capacity is calculated.")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
           .setScope(Scope.WORKER)
           .build();
 
+  //
+  // Extra class to be loaded
+  //
+  public static final PropertyKey EXTRA_LOADED_FILESYSTEM_CLASSNAME =
+          classBuilder(Name.EXTRA_LOADED_FILESYSTEM_CLASSNAME)
+                  .setDescription(
+                          "Full name of the class that will be loaded explicit for filesystem.")
+                  .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+                  .setScope(Scope.ALL)
+                  .build();
   /**
    * @deprecated This key is used for testing. It is always deprecated.
    */
@@ -8455,6 +8484,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.master.metastore.rocks.checkpoint.compression.level";
     public static final String MASTER_METASTORE_ROCKS_CHECKPOINT_COMPRESSION_TYPE =
         "alluxio.master.metastore.rocks.checkpoint.compression.type";
+    public static final String MASTER_METASTORE_ROCKS_EXCLUSIVE_LOCK_TIMEOUT =
+        "alluxio.master.metastore.rocks.exclusive.lock.timeout";
     public static final String MASTER_METASTORE_ROCKS_PARALLEL_BACKUP =
         "alluxio.master.metastore.rocks.parallel.backup";
     public static final String MASTER_METASTORE_ROCKS_PARALLEL_BACKUP_THREADS =
@@ -9169,6 +9200,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.user.file.metadata.load.type";
     public static final String USER_FILE_METADATA_SYNC_INTERVAL =
         "alluxio.user.file.metadata.sync.interval";
+    public static final String USER_FILE_METADATA_LOAD_REAL_CONTENT_HASH =
+        "alluxio.user.file.metadata.real.content.hash";
     public static final String USER_FILE_PASSIVE_CACHE_ENABLED =
         "alluxio.user.file.passive.cache.enabled";
     public static final String USER_FILE_READ_TYPE_DEFAULT = "alluxio.user.file.readtype.default";
@@ -9536,8 +9569,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String USER_NETWORK_NETTY_READER_BUFFER_SIZE_PACKETS =
         "alluxio.user.network.netty.reader.buffer.size.packets";
 
-    public static final String DORA_CLIENT_READ_LOCATION_POLICY_ENABLED =
-        "alluxio.dora.client.read.location.policy.enabled";
+    public static final String DORA_ENABLED =
+        "alluxio.dora.enabled";
     public static final String DORA_CLIENT_UFS_FALLBACK_ENABLED =
         "alluxio.dora.client.ufs.fallback.enabled";
     public static final String DORA_CLIENT_UFS_ROOT = "alluxio.dora.client.ufs.root";
@@ -9564,14 +9597,17 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String DORA_WORKER_METASTORE_ROCKSDB_INDEX =
         "alluxio.dora.worker.metastore.rocksdb.index";
 
-    public static final String DORA_WORKER_POPULATE_METADATA_FINGERPRINT =
-        "alluxio.dora.worker.populate.metadata.fingerprint";
-
     public static final String DORA_UFS_LIST_STATUS_CACHE_TTL =
         "alluxio.dora.ufs.list.status.cache.ttl";
 
-    public static final String DORA_UFS_LIST_STATUS_CACHE_NR_DIRS =
-        "alluxio.dora.ufs.list.status.cache.nr.dirs";
+    public static final String DORA_UFS_LIST_STATUS_CACHE_NR_FILES =
+        "alluxio.dora.ufs.list.status.cache.nr.files";
+
+    //
+    // Extra class to be loaded
+    //
+    public static final String EXTRA_LOADED_FILESYSTEM_CLASSNAME =
+            "alluxio.extra.loaded.filesystem.classname";
 
     private Name() {} // prevent instantiation
   }

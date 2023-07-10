@@ -28,7 +28,6 @@ import alluxio.metrics.MetricsSystem;
 import alluxio.network.ChannelType;
 import alluxio.util.network.NettyUtils;
 import alluxio.worker.DataServer;
-import alluxio.worker.block.DefaultBlockWorker;
 
 import com.codahale.metrics.Counter;
 import io.grpc.MethodDescriptor;
@@ -70,9 +69,6 @@ public class GrpcDataServer implements DataServer {
   private static final long SHUTDOWN_QUIET_PERIOD =
       Configuration.getMs(PropertyKey.WORKER_NETWORK_NETTY_SHUTDOWN_QUIET_PERIOD);
 
-  private static final boolean DORA_WORKER_ENABLED =
-      Configuration.getBoolean(PropertyKey.DORA_CLIENT_READ_LOCATION_POLICY_ENABLED);
-
   private final SocketAddress mSocketAddress;
   private EventLoopGroup mBossGroup;
   private EventLoopGroup mWorkerGroup;
@@ -105,12 +101,9 @@ public class GrpcDataServer implements DataServer {
       if (blockWorkerService instanceof DoraWorkerClientServiceHandler) {
         overriddenMethods = ((DoraWorkerClientServiceHandler) blockWorkerService)
             .getOverriddenMethodDescriptors();
-      } else if (blockWorkerService instanceof BlockWorkerClientServiceHandler) {
-        overriddenMethods = ((BlockWorkerClientServiceHandler) blockWorkerService)
-            .getOverriddenMethodDescriptors();
       } else {
-        throw new UnsupportedOperationException("Unsupported type of "
-            + "BlockWorkerGrpc.BlockWorkerImplBase");
+        throw new UnsupportedOperationException(blockWorkerService.getClass().getCanonicalName()
+            + " is not supported in Alluxio 3.x");
       }
       mServer = createServerBuilder(hostName, bindAddress, NettyUtils.getWorkerChannel(
           Configuration.global()))
@@ -137,7 +130,8 @@ public class GrpcDataServer implements DataServer {
   protected GrpcServerBuilder createServerBuilder(String hostName,
       SocketAddress bindAddress, ChannelType type) {
     // Create an executor for Worker RPC server.
-    final Counter clientCounter = DefaultBlockWorker.Metrics.WORKER_ACTIVE_OPERATIONS;
+    final Counter clientCounter =
+        MetricsSystem.counter(MetricKey.WORKER_ACTIVE_OPERATIONS.getName());
     mRPCExecutor = ExecutorServiceBuilder.buildExecutorService(
             ExecutorServiceBuilder.RpcExecutorHost.WORKER, clientCounter);
     MetricsSystem.registerGaugeIfAbsent(MetricKey.WORKER_RPC_QUEUE_LENGTH.getName(),

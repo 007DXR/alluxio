@@ -15,9 +15,10 @@ import alluxio.AlluxioURI;
 import alluxio.Constants;
 import alluxio.PositionReader;
 import alluxio.conf.PropertyKey;
-import alluxio.exception.runtime.UnimplementedRuntimeException;
 import alluxio.retry.RetryPolicy;
 import alluxio.underfs.ObjectUnderFileSystem;
+import alluxio.underfs.UfsFileStatus;
+import alluxio.underfs.UfsStatus;
 import alluxio.underfs.UnderFileSystem;
 import alluxio.underfs.UnderFileSystemConfiguration;
 import alluxio.underfs.options.OpenOptions;
@@ -158,6 +159,11 @@ public class OBSUnderFileSystem extends ObjectUnderFileSystem {
   @Override
   public String getUnderFSType() {
     return "obs";
+  }
+
+  @Override
+  public PositionReader openPositionRead(String path, long fileLength) {
+    return new OBSPositionReader(mClient, mBucketName, stripPrefixIfPresent(path), fileLength);
   }
 
   // No ACL integration currently, no-op
@@ -369,6 +375,18 @@ public class OBSUnderFileSystem extends ObjectUnderFileSystem {
   }
 
   @Override
+  public UfsStatus getStatus(String path) throws IOException {
+    if (!isDirectory(path)) {
+      ObjectStatus status = getObjectStatus(stripPrefixIfPresent(path));
+      ObjectPermissions permissions = getPermissions();
+      return new UfsFileStatus(path, status.getContentHash(), status.getContentLength(),
+              status.getLastModifiedTimeMs(), permissions.getOwner(), permissions.getGroup(),
+              permissions.getMode(), mUfsConf.getBytes(PropertyKey.USER_BLOCK_SIZE_BYTES_DEFAULT));
+    }
+    return getDirectoryStatus(path);
+  }
+
+  @Override
   public boolean isDirectory(String path) throws IOException {
     if (!isEnvironmentPFS()) {
       return super.isDirectory(path);
@@ -387,11 +405,6 @@ public class OBSUnderFileSystem extends ObjectUnderFileSystem {
       LOG.warn("Failed to get Object {}", pathKey, e);
       return false;
     }
-  }
-
-  @Override
-  public PositionReader openPositionRead(String path, long fileLength) {
-    throw new UnimplementedRuntimeException("Position read is not implemented");
   }
 
   // No ACL integration currently, returns default empty value
