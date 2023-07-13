@@ -816,11 +816,11 @@ public final class S3ClientRestApiTest extends RestApiTest {
     Assert.assertTrue(mFileSystemMaster
         .listStatus(uri, ListStatusContext.defaults()).isEmpty());
 
-    HttpURLConnection connection = headRestCall(bucket);
+    HttpURLConnection connection = headBucketRestCall(bucket);
     Assert.assertEquals(Response.Status.OK.getStatusCode(), connection.getResponseCode());
 
     // Verify 404 status will be returned by head none existing bucket.
-    connection = headRestCall(nonExistingBucket);
+    connection = headBucketRestCall(nonExistingBucket);
     Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), connection.getResponseCode());
   }
 
@@ -2211,10 +2211,22 @@ public final class S3ClientRestApiTest extends RestApiTest {
         getDefaultOptionsWithAuth()).executeAndAssertSuccess();
   }
 
+  private HttpURLConnection headBucketRestCall(String bucketUri) throws Exception {
+    return new TestCase(mHostname, mPort, mBaseUri,
+        bucketUri, NO_PARAMS, HttpMethod.HEAD,
+        getDefaultOptionsWithAuth()).execute();
+  }
+  
   private String computeObjectChecksum(byte[] objectContent) throws Exception {
     MessageDigest md5Hash = MessageDigest.getInstance("MD5");
     byte[] md5Digest = md5Hash.digest(objectContent);
     return BaseEncoding.base64().encode(md5Digest);
+  }
+
+  private void createObjectRestCall(String objectUri, @NotNull Map<String, String> params,
+                                    @NotNull TestCaseOptions options) throws Exception {
+    new TestCase(mHostname, mPort, mBaseUri, objectUri, params, HttpMethod.PUT, options)
+        .runAndCheckResult();
   }
 
   private String initiateMultipartUploadRestCall(String objectUri) throws Exception {

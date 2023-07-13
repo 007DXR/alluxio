@@ -12,6 +12,7 @@
 package alluxio.client.rest;
 
 import alluxio.exception.status.InvalidArgumentException;
+import alluxio.proxy.s3.S3Error;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -185,6 +186,21 @@ public final class TestCase {
     return connection;
   }
 
+  public HttpURLConnection checkResponseCode(int expectedResponseCode,String expectedErrorCode) throws Exception {
+    HttpURLConnection connection = execute();
+    Assert.assertEquals(expectedResponseCode, connection.getResponseCode());
+    InputStream errorStream = connection.getErrorStream();
+
+    if (errorStream!=null && expectedErrorCode!=null){
+      S3Error response=XML_MAPPER.readerFor(S3Error.class).readValue(errorStream);
+      Assert.assertEquals(expectedErrorCode,response.getCode());
+    }
+    return connection;
+  }
+
+  public HttpURLConnection checkResponseCode(int expectedResponseCode) throws Exception {
+    return checkResponseCode(expectedResponseCode,null);
+  }
   /**
    * Runs the test case and returns the output.
    */

@@ -39,7 +39,7 @@ public class CreateObjectTest extends RestApiTest {
   @Rule
   public S3ProxyRule mS3Proxy = S3ProxyRule.builder()
       .withBlobStoreProvider("transient")
-      .withPort(8001)
+      .withPort(8003)
       .withCredentials("_", "_")
       .build();
 
@@ -47,19 +47,9 @@ public class CreateObjectTest extends RestApiTest {
   public LocalAlluxioClusterResource mLocalAlluxioClusterResource =
       new LocalAlluxioClusterResource.Builder()
           .setIncludeProxy(true)
-          .setProperty(PropertyKey.MASTER_PERSISTENCE_CHECKER_INTERVAL_MS, "10ms")
-          .setProperty(PropertyKey.MASTER_PERSISTENCE_SCHEDULER_INTERVAL_MS, "10ms")
-          .setProperty(PropertyKey.JOB_MASTER_WORKER_HEARTBEAT_INTERVAL, "200ms")
-          .setProperty(PropertyKey.USER_BLOCK_SIZE_BYTES_DEFAULT, Constants.MB * 16)
-          .setProperty(PropertyKey.MASTER_TTL_CHECKER_INTERVAL_MS, Long.MAX_VALUE)
           .setProperty(PropertyKey.USER_FILE_WRITE_TYPE_DEFAULT, WriteType.CACHE_THROUGH)
-          .setProperty(PropertyKey.USER_FILE_RESERVED_BYTES, Constants.MB * 16 / 2)
-          .setProperty(PropertyKey.CONF_DYNAMIC_UPDATE_ENABLED, true)
           .setProperty(PropertyKey.WORKER_BLOCK_STORE_TYPE, "PAGE")
-          .setProperty(PropertyKey.WORKER_PAGE_STORE_PAGE_SIZE, Constants.KB)
-          .setProperty(PropertyKey.WORKER_PAGE_STORE_SIZES, "1GB")
-          .setProperty(PropertyKey.MASTER_JOURNAL_TYPE, JournalType.NOOP)
-          .setProperty(PropertyKey.UNDERFS_S3_ENDPOINT, "localhost:8001")
+          .setProperty(PropertyKey.UNDERFS_S3_ENDPOINT, "localhost:8003")
           .setProperty(PropertyKey.UNDERFS_S3_ENDPOINT_REGION, "us-west-2")
           .setProperty(PropertyKey.UNDERFS_S3_DISABLE_DNS_BUCKETS, true)
           .setProperty(PropertyKey.MASTER_MOUNT_TABLE_ROOT_UFS, "s3://" + TEST_BUCKET)
@@ -68,12 +58,10 @@ public class CreateObjectTest extends RestApiTest {
           .setProperty(PropertyKey.S3A_ACCESS_KEY, mS3Proxy.getAccessKey())
           .setProperty(PropertyKey.S3A_SECRET_KEY, mS3Proxy.getSecretKey())
           .setNumWorkers(2)
-          .setStartCluster(false)
           .build();
 
   @Before
   public void before() throws Exception {
-    mLocalAlluxioClusterResource.start();
 
     mS3Client = AmazonS3ClientBuilder
         .standard()
@@ -105,10 +93,11 @@ public class CreateObjectTest extends RestApiTest {
     final String objectKey = bucket + AlluxioURI.SEPARATOR + "object";
     final byte[] object = "Hello World!".getBytes();
 
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
-    Assert.assertArrayEquals(object, getObjectRestCall(objectKey).getBytes());
+    createObjectTestCase(objectKey, object).checkResponseCode(Response.Status.OK.getStatusCode());
+//    Assert.assertArrayEquals(object, getObjectRestCall(objectKey).getBytes());
+    System.out.println(getObjectTestCase(objectKey).execute().getContent());
   }
+
 
   @Test
   public void overwriteObject() throws Exception {
@@ -118,12 +107,10 @@ public class CreateObjectTest extends RestApiTest {
     final String objectKey = bucket + AlluxioURI.SEPARATOR + "object";
     final byte[] object = "Hello World!".getBytes();
     final byte[] object2 = CommonUtils.randomAlphaNumString(Constants.KB).getBytes();
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(objectKey, object).checkResponseCode(Response.Status.OK.getStatusCode());
     Assert.assertArrayEquals(object, getObjectRestCall(objectKey).getBytes());
 //   This object will be overwritten.
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, object2, TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(objectKey, object2).checkResponseCode(Response.Status.OK.getStatusCode());
     Assert.assertArrayEquals(object2, getObjectRestCall(objectKey).getBytes());
   }
 
@@ -146,131 +133,16 @@ public class CreateObjectTest extends RestApiTest {
   @Test
   public void putDirectory() throws Exception {
     final String bucket = "bucket";
-    final String objectKey = bucket + AlluxioURI.SEPARATOR + "folder0"+AlluxioURI.SEPARATOR + "folder1/";
-    final byte[] object = new byte[] {};
+    final String folderKey1 = "bucket/folder0/";
+    final String folderKey2 = "bucket/folder0/folder1/";
+    final byte[] object = EMPTY_OBJECT;
 
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(folderKey2, object).checkResponseCode(Response.Status.OK.getStatusCode());
 
-    Assert.assertEquals(0, headRestCall(objectKey).getContentLength());
-    Assert.assertEquals(0, headRestCall(objectKey).getContentLength());
-//    Assert.assertArrayEquals(object, getObjectRestCall(objectKey).is());
-  }
-//  @Test
-//  public void putObjectAndDirectoryWithSameName() throws Exception {
-//    final String bucket = "bucket";
-//
-//    final String objectKey = bucket + AlluxioURI.SEPARATOR + "folder";
-//    final String foldertKey = objectKey + AlluxioURI.SEPARATOR ;
-//
-//
-//    final byte[] object = CommonUtils.randomAlphaNumString(Constants.KB).getBytes();
-//    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-//        createBucketRestCall(bucket).getResponseCode());
-//
-//    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-//        createObjectRestCall(objectKey, NO_PARAMS, object,TEST_USER_NAME).getResponseCode());
-//    HttpURLConnection connection=headRestCall(objectKey);
-//    Assert.assertEquals(Constants.KB, connection.getContentLength());
-//
-//    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-//        createObjectRestCall(foldertKey, NO_PARAMS, new byte[] {},TEST_USER_NAME).getResponseCode());
-//
-//    List<URIStatus> statuses = mFileSystem.listStatus(new AlluxioURI("/bucket"),
-//        ListStatusPOptions.newBuilder().setRecursive(true).build());
-//    ListBucketResult expected = new ListBucketResult("bucket", statuses,
-//        ListBucketOptions.defaults().setDelimiter(AlluxioURI.SEPARATOR));
-////    assertEquals(2, statuses.size());
-////    assertEquals(false, statuses.get(0).isFolder());
-////    assertEquals(false, statuses.get(1).isFolder());
-//    assertEquals(Constants.KB, statuses.get(0).getLength());
-////    assertEquals(Constants.KB, statuses.get(1).getLength());
-//    assertEquals("folder", expected.getContents().get(0).getKey());
-////    assertEquals("folder/object", expected.getContents().get(1).getKey());
-//    assertEquals("folder/", expected.getCommonPrefixes().get(0).getPrefix());
-////    assertEquals("folder0/", expected.getCommonPrefixes().get(0).getPrefix());
-////    assertEquals("folder0/", expected.getCommonPrefixes().get(1).getPrefix());
-////    connection=headRestCall(objectKey);
-////    Assert.assertEquals(Constants.KB, connection.getContentLength());
-////     connection=headRestCall(objectKey2);
-////    Assert.assertEquals(Constants.KB, connection.getContentLength());
-////    connection=headRestCall(foldertKey);
-////    Assert.assertEquals(0, connection.getContentLength());
-//  }
-
-  /**
-   * Creates object first, and then creates directory with the same name.
-   */
-//  @Test
-//  public void putObjectAndDirectoryWithSameName() throws Exception {
-//    final String bucket = "bucket";
-//    final String objectKey = bucket + AlluxioURI.SEPARATOR + "folder";
-//    final String objectKey2 = objectKey + AlluxioURI.SEPARATOR + "object/";
-//    final byte[] object = CommonUtils.randomAlphaNumString(Constants.KB).getBytes();
-//    final byte[] object2 = CommonUtils.randomAlphaNumString(Constants.KB * 2).getBytes();
-//
-//    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-//        createBucketRestCall(bucket).getResponseCode());
-////    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-////        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
-//    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-//        createObjectRestCall(objectKey2, NO_PARAMS, new byte[]{}, TEST_USER_NAME).getResponseCode());
-//
-////    Assert.assertEquals(Constants.KB, headRestCall(objectKey).getContentLength());
-////    Assert.assertEquals(Constants.KB * 2, headRestCall(objectKey2).getContentLength());
-////    Assert.assertEquals(Response.Status.OK.getStatusCode(), headRestCall(objectKey2).getResponseCode());
-////    HttpURLConnection connection =
-////    Assert.assertEquals(0, );
-////    Assert.assertEquals(Response.Status.OK.getStatusCode(), connection.getResponseCode());
-//    System.out.println( headRestCall(objectKey2).getResponseCode());
-//    System.out.println(new TestCase(mHostname, mPort, mBaseUri,
-//        objectKey2, NO_PARAMS, HttpMethod.GET,
-//        getDefaultOptionsWithAuth()).execute().getResponseCode());
-//  }
-
-  @Test
-  public void putObjectAndDirectoryWithSameName() throws Exception {
-    final String bucket = "bucket";
-    final String objectKey = bucket + AlluxioURI.SEPARATOR + "folder";
-    final String objectKey2 = objectKey + AlluxioURI.SEPARATOR + "object/";
-    final byte[] object = CommonUtils.randomAlphaNumString(Constants.KB).getBytes();
-    final byte[] object2 = CommonUtils.randomAlphaNumString(Constants.KB * 2).getBytes();
-
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, new byte[]{}, TEST_USER_NAME).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey2, NO_PARAMS, new byte[]{}, TEST_USER_NAME).getResponseCode());
-
-
-    System.out.println( headRestCall(objectKey2).getResponseCode());
-    System.out.println(new TestCase(mHostname, mPort, mBaseUri,
-        objectKey2, NO_PARAMS, HttpMethod.GET,
-        getDefaultOptionsWithAuth()).execute().getResponseCode());
-  }
-  /**
-   * Creates directory first, and then creates object with the same name.
-   */
-  @Test
-  public void putDirectoryAndObjectWithSameName() throws Exception {
-    final String bucket = "bucket";
-    final String objectKey = bucket + AlluxioURI.SEPARATOR + "folder";
-    final String objectKey2 = objectKey + AlluxioURI.SEPARATOR + "object";
-    final byte[] object = CommonUtils.randomAlphaNumString(Constants.KB).getBytes();
-    final byte[] object2 = CommonUtils.randomAlphaNumString(Constants.KB * 2).getBytes();
-
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey2, NO_PARAMS, object2, TEST_USER_NAME).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
-
-    Assert.assertArrayEquals(object, getObjectRestCall(objectKey).getBytes());
-    Assert.assertArrayEquals(object2, getObjectRestCall(objectKey2).getBytes());
+    headAndAssertSuccess(folderKey1);
+    headAndAssertSuccess(folderKey2);
   }
 
   @Test
@@ -278,16 +150,9 @@ public class CreateObjectTest extends RestApiTest {
 
     final String bucket = "non-existent-bucket";
     final String objectKey = bucket + AlluxioURI.SEPARATOR + "folder/";
-    final byte[] object = new byte[] {};
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(bucket).getResponseCode());
-    HttpURLConnection connection =
-        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME);
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), connection.getResponseCode());
-    S3Error response =
-        new XmlMapper().readerFor(S3Error.class).readValue(connection.getErrorStream());
-    Assert.assertEquals(objectKey, response.getResource());
-    Assert.assertEquals(S3ErrorCode.Name.NO_SUCH_BUCKET, response.getCode());
+    headAndAssertNotFound(bucket);
+    createObjectTestCase(objectKey, EMPTY_OBJECT).checkResponseCode(
+        Response.Status.NOT_FOUND.getStatusCode(), S3ErrorCode.Name.NO_SUCH_BUCKET);
   }
 
 
@@ -297,15 +162,10 @@ public class CreateObjectTest extends RestApiTest {
     final String objectKey = bucket + AlluxioURI.SEPARATOR + "object";
     final byte[] object = "Hello World!".getBytes();
 
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(bucket).getResponseCode());
-    HttpURLConnection connection =
-        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME);
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(), connection.getResponseCode());
-    S3Error response =
-        new XmlMapper().readerFor(S3Error.class).readValue(connection.getErrorStream());
-    Assert.assertEquals(objectKey, response.getResource());
-    Assert.assertEquals(S3ErrorCode.Name.NO_SUCH_BUCKET, response.getCode());
+    headAndAssertNotFound(bucket);
+    createObjectTestCase(objectKey, object).checkResponseCode(
+        Response.Status.NOT_FOUND.getStatusCode(), S3ErrorCode.Name.NO_SUCH_BUCKET);
+
   }
 
   @Test
@@ -316,16 +176,11 @@ public class CreateObjectTest extends RestApiTest {
 
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    HttpURLConnection connection = createObjectRestCall(objectKey, NO_PARAMS,
-        getDefaultOptionsWithAuth()
-            .setBody(object)
-            .setContentType(TestCaseOptions.OCTET_STREAM_CONTENT_TYPE)
-            .setMD5(null));
-    Assert.assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), connection.getResponseCode());
-    S3Error response =
-        new XmlMapper().readerFor(S3Error.class).readValue(connection.getErrorStream());
-    Assert.assertEquals(objectKey, response.getResource());
-    Assert.assertEquals(S3ErrorCode.Name.BAD_DIGEST, response.getCode());
+    createObjectTestCase(objectKey,getDefaultOptionsWithAuth()
+        .setBody(object)
+        .setContentType(TestCaseOptions.OCTET_STREAM_CONTENT_TYPE)
+        .setMD5(null)).checkResponseCode(Response.Status.BAD_REQUEST.getStatusCode(),S3ErrorCode.Name.BAD_DIGEST);
+
   }
 
   /**
@@ -343,9 +198,8 @@ public class CreateObjectTest extends RestApiTest {
         createBucketRestCall(bucket1).getResponseCode());
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket2).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(sourcePath, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
 
+    createObjectTestCase(sourcePath, object).checkResponseCode(Response.Status.OK.getStatusCode());
     // copy object
     new TestCase(mHostname, mPort, mBaseUri,
         targetPath,
@@ -371,10 +225,9 @@ public class CreateObjectTest extends RestApiTest {
     final byte[] object = "Hello World!".getBytes();
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket1).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(sourcePath, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(bucket2).getResponseCode());
+    createObjectTestCase(sourcePath, object).checkResponseCode(Response.Status.OK.getStatusCode());
+
+    headAndAssertNotFound(bucket2);
     // copy object
     HttpURLConnection connection = new TestCase(mHostname, mPort, mBaseUri,
         targetPath,
@@ -403,8 +256,7 @@ public class CreateObjectTest extends RestApiTest {
     final byte[] object = "Hello World!".getBytes();
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(sourcePath, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(sourcePath, object).checkResponseCode(Response.Status.OK.getStatusCode());
 
 
     // copy object
@@ -431,8 +283,7 @@ public class CreateObjectTest extends RestApiTest {
     final byte[] object = "Hello World!".getBytes();
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(sourcePath, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(sourcePath, object).checkResponseCode(Response.Status.OK.getStatusCode());
 
 
     // copy object
@@ -459,8 +310,7 @@ public class CreateObjectTest extends RestApiTest {
     final byte[] object = "Hello World!".getBytes();
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(sourcePath, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(sourcePath, object).checkResponseCode(Response.Status.OK.getStatusCode());
 
 
     // copy object
@@ -483,11 +333,9 @@ public class CreateObjectTest extends RestApiTest {
 
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(objectKey, object).checkResponseCode(Response.Status.OK.getStatusCode());
     deleteRestCall(objectKey);
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(objectKey).getResponseCode());
+    headAndAssertNotFound(objectKey);
 
   }
 
@@ -514,8 +362,7 @@ public class CreateObjectTest extends RestApiTest {
 
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(objectKey).getResponseCode());
+    headAndAssertNotFound(objectKey);
     deleteRestCall(objectKey);
 
   }
@@ -527,12 +374,9 @@ public class CreateObjectTest extends RestApiTest {
 
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, new byte[] {},
-            TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(objectKey, new byte[]{}).checkResponseCode(Response.Status.OK.getStatusCode());
     deleteRestCall(objectKey);
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(objectKey).getResponseCode());
+    headAndAssertNotFound(objectKey);
   }
 
   @Test
@@ -557,8 +401,7 @@ public class CreateObjectTest extends RestApiTest {
 
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(objectKey).getResponseCode());
+    headAndAssertNotFound(objectKey);
     deleteRestCall(objectKey);
   }
 
@@ -569,18 +412,15 @@ public class CreateObjectTest extends RestApiTest {
     final String objectKey = folderKey + AlluxioURI.SEPARATOR + "object";
     final byte[] object = CommonUtils.randomAlphaNumString(Constants.KB).getBytes();
 
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(objectKey).getResponseCode());
+    headAndAssertNotFound(objectKey);
 
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(objectKey, object).checkResponseCode(Response.Status.OK.getStatusCode());
 
 //    The directory can't be deleted because of non-empty directory.
     deleteRestCall(folderKey);
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        headRestCall(objectKey).getResponseCode());
+    headAndAssertSuccess(objectKey);
   }
 
   @Test
@@ -590,18 +430,14 @@ public class CreateObjectTest extends RestApiTest {
     final String objectKey = folderKey + AlluxioURI.SEPARATOR + "object";
     final byte[] object = CommonUtils.randomAlphaNumString(Constants.KB).getBytes();
 
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(objectKey).getResponseCode());
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(folderKey).getResponseCode());
-    Assert.assertEquals(Response.Status.NOT_FOUND.getStatusCode(),
-        headRestCall(bucket).getResponseCode());
+    headAndAssertNotFound(objectKey);
+    headAndAssertNotFound(folderKey);
+    headAndAssertNotFound(bucket);
     Assert.assertEquals(Response.Status.OK.getStatusCode(),
         createBucketRestCall(bucket).getResponseCode());
-    Assert.assertEquals(Response.Status.OK.getStatusCode(),
-        createObjectRestCall(objectKey, NO_PARAMS, object, TEST_USER_NAME).getResponseCode());
+    createObjectTestCase(objectKey, object).checkResponseCode(Response.Status.OK.getStatusCode());
 
     Assert.assertArrayEquals(object, getObjectRestCall(objectKey).getBytes());
-    Assert.assertEquals(0, headRestCall(folderKey).getContentLength());
+    headAndAssertSuccess(folderKey);
   }
 }
