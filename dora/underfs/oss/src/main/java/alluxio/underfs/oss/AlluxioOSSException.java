@@ -17,6 +17,8 @@ import alluxio.grpc.ErrorType;
 import com.aliyun.oss.ServiceException;
 import io.grpc.Status;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -26,6 +28,8 @@ import java.util.Set;
  * Alluxio exception for oss.
  */
 public class AlluxioOSSException extends AlluxioRuntimeException {
+  private static final Logger LOG = LoggerFactory.getLogger(AlluxioOSSException.class);
+
   private static final ErrorType ERROR_TYPE = ErrorType.External;
   private static final String[] INVALID_ARGUMENT_ERROR_CODE =
       {"EntityTooLarge", "EntityTooSmall", "FileGroupTooLarge", "FilePartNotExist", "FilePartStale",
@@ -64,6 +68,7 @@ public class AlluxioOSSException extends AlluxioRuntimeException {
   }
 
   private static Status httpStatusToGrpcStatus(String errorCode) {
+    LOG.warn("occur error ："+errorCode);
     if (INVALID_ARGUMENT_ERROR_CODE_SET.contains(errorCode)) {
       // http status code is 400
       return Status.INVALID_ARGUMENT;
